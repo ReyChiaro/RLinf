@@ -122,6 +122,7 @@ SupportedModel.GR00T_N1D6 = SupportedModel.register("gr00t_n1d6", force=True)
 SupportedModel.DEEPSEEK_V3 = SupportedModel.register("deepseek_v3", force=True)
 SupportedModel.GR00T_N1D7 = SupportedModel.register("gr00t_n1d7", force=True)
 SupportedModel.EVO1 = SupportedModel.register("evo1", force=True)
+SupportedModel.FASTWAM = SupportedModel.register("fastwam", force=True)
 
 DIFFUSION_MODELS = {SupportedModel.SD3, SupportedModel.WAN22_TI2V_5B}
 
@@ -152,6 +153,7 @@ EMBODIED_MODEL = set(
         SupportedModel.RECAP_VALUE_MODEL,
         SupportedModel.STEAM_VALUE_MODEL,
         SupportedModel.EVO1,
+        SupportedModel.FASTWAM,
     }
 )
 
@@ -917,6 +919,46 @@ def validate_embodied_cfg(cfg):
         f"Supported embodied models: {sorted([x.value for x in EMBODIED_MODEL])}; "
         f"supported diffusion models: {sorted([x.value for x in DIFFUSION_MODELS])}."
     )
+
+    if not only_eval and model_type == SupportedModel.FASTWAM:
+        # FastWAM structural requirements (enforced before the model builder runs
+        # on the actual checkpoint, which is only available on the workers).
+        fastwam_model = cfg.actor.model
+        assert fastwam_model.get("stats_path", None) is not None, (
+            "FastWAM requires actor.model.stats_path (dataset_stats.json with the "
+            "action/state min-max statistics of the SFT checkpoint)."
+        )
+        assert int(fastwam_model.get("num_action_chunks", 0)) > 0, (
+            "FastWAM requires actor.model.num_action_chunks > 0."
+        )
+        assert int(fastwam_model.get("num_flow_steps", 0)) >= 1, (
+            "FastWAM requires actor.model.num_flow_steps >= 1."
+        )
+        assert float(fastwam_model.get("noise_level", 0.0)) > 0, (
+            "FastWAM (Flow-GRPO) requires actor.model.noise_level > 0 so the "
+            "single stochastic denoise transition has non-degenerate likelihood."
+        )
+        assert not fastwam_model.get("is_lora", False), (
+            "FastWAM RL does not support LoRA (only the action expert trains)."
+        )
+        adv_type = algorithm_cfg.get("adv_type")
+        loss_type = algorithm_cfg.get("loss_type")
+        logprob_type = algorithm_cfg.get("logprob_type")
+        if not (
+            adv_type in ("grpo", "grpo_dynamic", "reinpp")
+            and loss_type == "actor"
+            and logprob_type == "chunk_level"
+        ):
+            logging.warning(
+                "FastWAM is validated as the Flow-GRPO objective "
+                "(algorithm.adv_type=grpo|grpo_dynamic|reinpp, loss_type=actor, "
+                "logprob_type=chunk_level), but got adv_type=%s loss_type=%s "
+                "logprob_type=%s. Continue only if you know what you are doing.",
+                adv_type,
+                loss_type,
+                logprob_type,
+            )
+
     with open_dict(cfg):
         cfg.runner.val_check_interval = cfg.runner.get("val_check_interval", -1)
     enable_eval = cfg.runner.val_check_interval > 0 or only_eval

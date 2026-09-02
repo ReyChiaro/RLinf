@@ -1,0 +1,29 @@
+model_type: "fastwam"
+
+# Root of the FastWAM checkpoint. The directory must contain the diffusers-style
+# subfolders produced by FastWAM: vae / text_encoder / proprio_encoder /
+# video_expert / action_expert / tokenizer / video_scheduler / action_scheduler.
+model_path: "/path/to/fastwam/checkpoint"
+
+precision: null # for FastWAM, leave null to load checkpoint dtype
+
+# Action / chunk interface
+action_dim: 7
+num_action_chunks: 32 # chunk length executed per model call (LIBERO 20 Hz)
+
+# Action-flow RL (Flow-GRPO) knobs
+num_flow_steps: 10   # denoising steps of the action flow (ODE grid)
+noise_level: 1.0     # reverse-SDE noise at the single stochastic step
+seed: null
+cond_max_len: 512    # fixed padded prompt-cond length (see policy.py); raise it
+                     # if very long LIBERO-Plus `_language_` instructions appear
+
+# Min-max normalization statistics of the SFT data (action/state). Required:
+# the wrapper denormalizes sampled chunks into env commands and normalizes the
+# proprio state conditioning with these exact numbers.
+stats_path: "/path/to/dataset_stats.json"
+
+# LoRA is not supported for the FastWAM RL path (only the action expert trains).
+is_lora: False
+
+add_value_head: False # GRPO is critic-free; a learned value head is not used

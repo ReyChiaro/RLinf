@@ -1,0 +1,44 @@
+env_type: libero
+task_suite_name: libero_spatial
+
+# Deterministic LIBERO-Plus train/test split of the suite: base stems are
+# split with a fixed seed so perturbed variants of one origin task never leak
+# across train and test (see rlinf.envs.libero.libero_splits).
+suite_split:
+  seed: 0
+  subset: train
+  train_fraction: 0.8
+
+total_num_envs: null
+
+auto_reset: False
+ignore_terminations: False
+max_steps_per_rollout_epoch: 480
+max_episode_steps: 480 # max episode steps for truncation
+
+# Reward comes from the simulator: sparse 1.0 exactly on the final step of a
+# successful episode (LIBERO `done == _check_success()`), 0 otherwise.
+use_rel_reward: False
+use_step_penalty: False
+reward_coef: 1.0
+
+# RLinf LiberoEnv specific settings
+reset_gripper_open: True
+is_eval: False
+
+seed: 0
+group_size: 1
+use_fixed_reset_state_ids: True
+use_ordered_reset_state_ids: False
+
+specific_reset_id: null # can be a number or null.
+
+video_cfg:
+  save_video: False
+  info_on_video: True
+  video_base_dir: ${runner.logger.log_path}/video/train
+
+init_params:
+  # FastWAM input size (two 224x224 cameras concatenated -> 224x448).
+  camera_heights: 224
+  camera_widths: 224

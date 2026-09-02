@@ -22,3 +22,6 @@ rlinf/envs/maniskill/assets
 PKG-INFO
 *.egg-info/
 .claude/settings.json
+
+.*.md
+docs/async_pipeline_abstraction.md

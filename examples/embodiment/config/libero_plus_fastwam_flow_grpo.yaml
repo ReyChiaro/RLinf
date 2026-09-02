@@ -1,0 +1,138 @@
+# FastWAM + Flow-GRPO on LIBERO-Plus (sparse success rewards from the simulator).
+#
+# Flow-GRPO: the FastWAM action flow is sampled with one uniformly random
+# stochastic (reverse-SDE) denoise step per chunk while all other steps are
+# deterministic Euler-ODE transitions. The recorded transition likelihood is
+# re-computed on the actor and combined with GRPO group-normalized advantages
+# (per task/initial-state group) through the clipped-ratio policy surrogate:
+# i.e. algorithm.adv_type: grpo + algorithm.loss_type: actor acting on the
+# model-provided flow log-probs (see rlinf.models.embodiment.fastwam.policy).
+#
+# LIBERO-Plus: install the sylvestf/LIBERO-plus fork as the `libero` package
+# (pip install -e .), keep LIBERO_TYPE=standard, and download its assets.
+# Train/eval task splits come from `suite_split` (fixed-seed base-stem split).
+defaults:
+  - env/libero_plus_spatial_train@env.train
+  - env/libero_plus_spatial_eval@env.eval
+  - model/fastwam@actor.model
+  - hybrid_engines/fsdp@actor.fsdp_config
+  - weight_syncer/patch_syncer@weight_syncer
+  - override hydra/job_logging: stdout
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  searchpath:
+    - file://${oc.env:EMBODIED_PATH}/config/
+
+cluster:
+  num_nodes: 1
+  component_placement:
+    actor,env,rollout: all
+
+runner:
+  task_type: embodied
+  logger:
+    log_path: "../results"
+    project_name: rlinf
+    experiment_name: "libero_plus_fastwam_flow_grpo"
+    logger_backends: ["tensorboard"] # wandb, swanlab
+
+  max_epochs: 1000
+  max_steps: -1
+
+  only_eval: False
+  val_check_interval: -1
+  save_interval: 40
+
+  resume_dir: null # e.g. 'checkpoints/global_step_10'
+  ckpt_path: null  # optional .pt checkpoint for evaluation
+
+algorithm:
+  normalize_advantages: True
+  group_size: 8 # envs sharing one (task, initial state) reset group
+  reward_coef: 1.0
+
+  # Env success (1 on the terminal step) is accumulated into episode returns and
+  # grouped per initial state for the GRPO baseline.
+  reward_type: chunk_level
+  logprob_type: chunk_level # sums the per-element flow log-probs over the chunk
+  entropy_type: token_level
+  update_epoch: 1
+
+  adv_type: grpo
+  loss_type: actor
+  loss_agg_func: "token-mean"
+  kl_beta: 0.0 # Flow-GRPO KL-to-base is not used (full fine-tune of action expert)
+  entropy_bonus: 0
+  clip_ratio_high: 0.2
+  clip_ratio_low: 0.2
+  clip_ratio_c: null
+
+  gamma: 1.0
+  gae_lambda: 1.0
+
+  filter_rewards: True
+  rewards_lower_bound: 0.1
+  rewards_upper_bound: 0.9
+
+env:
+  group_name: "EnvGroup"
+  train:
+    rollout_epoch: 8
+    total_num_envs: 64
+    group_size: ${algorithm.group_size}
+  eval:
+    rollout_epoch: 1
+    total_num_envs: 500
+
+rollout:
+  group_name: "RolloutGroup"
+  generation_backend: "huggingface"
+  recompute_logprobs: False
+  enable_offload: False
+  pipeline_stage_num: 1
+
+  model:
+    model_type: ${actor.model.model_type}
+    model_path: ${actor.model.model_path}
+    precision: ${actor.model.precision}
+
+actor:
+  group_name: "ActorGroup"
+  training_backend: "fsdp"
+  micro_batch_size: 8 # chunk-call rows per micro batch
+  global_batch_size: 64
+  seed: 42
+  enable_offload: False
+
+  model:
+    model_path: "/path/to/model/fastwam-libero-sft"
+    stats_path: "/path/to/dataset_stats.json"
+    num_action_chunks: 32
+    num_flow_steps: 10
+    noise_level: 1.0
+
+  optim:
+    lr: 5.0e-6
+    adam_beta1: 0.9
+    adam_beta2: 0.95
+    adam_eps: 1.0e-08
+    weight_decay: 0.01
+    clip_grad: 1.0
+
+  fsdp_config:
+    strategy: "fsdp"
+    sharding_strategy: "no_shard" # change to full_shard for multi-GPU scale-out
+    gradient_checkpointing: False
+    mixed_precision:
+      param_dtype: bf16
+      reduce_dtype: bf16
+      buffer_dtype: bf16
+
+reward:
+  use_reward_model: False # success reward comes from the simulator
+
+critic:
+  use_critic_model: False

@@ -156,6 +156,14 @@ class LiberoEnv(gym.Env):
 
         self.task_suite: Benchmark = get_benchmark_overridden(cfg.task_suite_name)()
 
+        # Deterministic LIBERO-Plus train/test subsets: split base stems by seed
+        # (see rlinf.envs.libero.libero_splits) and restrict this env to the
+        # configured subset unless an explicit task_id_filter was provided.
+        if self.task_id_filter is None:
+            from rlinf.envs.libero.libero_splits import resolve_suite_split
+
+            self.task_id_filter = resolve_suite_split(str(cfg.task_suite_name), cfg)
+
         self._compute_total_num_group_envs()
         self.reset_state_ids_all = self.get_reset_state_ids_all()
         if self.is_eval:

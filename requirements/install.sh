@@ -101,7 +101,7 @@ NO_ROOT=0
 NO_INSTALL_RLINF_CMD="--no-install-project"
 SUPPORTED_TARGETS=("embodied" "agentic" "docs")
 SUPPORTED_ENGINES=("sglang" "vllm")
-SUPPORTED_MODELS=("openvla" "openvla-oft" "openpi" "gr00t" "gr00t_n1d6" "gr00t_n1d7" "dexbotic" "starvla" "lingbotvla" "dreamzero" "cosmos3" "qwen3_vl" "abot_m0" "molmoact2" "evo1" "diffusion")
+SUPPORTED_MODELS=("openvla" "openvla-oft" "openpi" "gr00t" "gr00t_n1d6" "gr00t_n1d7" "dexbotic" "starvla" "lingbotvla" "dreamzero" "cosmos3" "qwen3_vl" "abot_m0" "molmoact2" "evo1" "diffusion" "fastwam")
 SUPPORTED_ENVS=("behavior" "maniskill_libero" "libero" "metaworld" "calvin" "isaaclab" "robocasa" "robocasa365" "franka" "franka-dexhand" "franka-franky" "frankasim" "robotwin" "habitat" "opensora" "wan" "genesis" "xsquare_turtle2" "liberopro" "liberoplus" "roboverse" "embodichain" "d4rl" "dosw1" "gim_arm" "dummy" "polaris")
 
 #=======================Utility Functions=======================
@@ -2235,6 +2235,33 @@ install_abot_m0_model() {
     uv pip uninstall pynvml || true
 }
 
+install_fastwam_model() {
+    echo "[install.sh] Installing FastWAM deps..."
+    create_and_sync_venv
+    install_common_embodied_deps
+
+    # FastWAM (Wan-lineage world-action model) uses the diffusers model/config
+    # mixins and HF safetensors layout of its checkpoints.
+    uv pip install "diffusers>=0.40.0" safetensors ftfy
+
+    case "$ENV_NAME" in
+        libero)
+            install_libero_env
+            ;;
+        liberoplus)
+            install_liberoplus_env
+            ;;
+        liberopro)
+            install_liberopro_env
+            ;;
+        *)
+            echo "Environment '$ENV_NAME' is not supported for the FastWAM model." >&2
+            echo "Supported envs: libero, liberoplus, liberopro." >&2
+            exit 1
+            ;;
+    esac
+}
+
 install_dreamzero_deps() {
     local dreamzero_path
     dreamzero_path=$(clone_or_reuse_repo DREAMZERO_PATH "$VENV_DIR/dreamzero" https://github.com/dreamzero0/dreamzero.git)
@@ -3218,6 +3245,9 @@ main() {
                     ;;
                 qwen3_vl)
                     install_qwen3_vl_model
+                    ;;
+                fastwam)
+                    install_fastwam_model
                     ;;
                 diffusion)
                     install_diffusion_model

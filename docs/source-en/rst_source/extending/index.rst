@@ -49,6 +49,12 @@ to RLinf.
 
       Adapt the embodied model to the RLinf rollout worker using the sglang backend, and use various simulators to evaluate the model.
 
+   .. grid-item-card:: FastWAM + Flow-GRPO (LIBERO-Plus)
+      :link: fastwam_flow_grpo
+      :link-type: doc
+
+      Add the FastWAM flow-matching policy with the Flow-GRPO RL objective on the LIBERO-Plus benchmark.
+
 .. toctree::
    :hidden:
 
@@ -59,3 +65,4 @@ to RLinf.
    New SFT Model <new_model_sft>
    Advanced Integrations <advanced-integrations/index>
    SGLang Embodied Model <sglang_embodied_model>
+   FastWAM + Flow-GRPO (LIBERO-Plus) <fastwam_flow_grpo>
