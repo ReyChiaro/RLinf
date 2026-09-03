@@ -108,8 +108,12 @@ actor:
   enable_offload: False
 
   model:
-    model_path: "/path/to/model/fastwam-libero-sft"
-    stats_path: "/path/to/dataset_stats.json"
+    # model_path must point at the per-module (init) checkpoint dir; optionally
+    # sft_state_dict_path points at the whole-model SFT snapshot (sft/weights),
+    # which then fully replaces the per-module weights (see model/fastwam.yaml).
+    model_path: "/path/to/model/fastwam-wan2.2-init"
+    # sft_state_dict_path: "/path/to/model/sft/weights"
+    stats_path: "/path/to/model/sft/dataset_stats.json"
     num_action_chunks: 32
     num_flow_steps: 10
     noise_level: 1.0

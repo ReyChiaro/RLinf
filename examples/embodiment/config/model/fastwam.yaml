@@ -1,9 +1,17 @@
 model_type: "fastwam"
 
-# Root of the FastWAM checkpoint. The directory must contain the diffusers-style
-# subfolders produced by FastWAM: vae / text_encoder / proprio_encoder /
-# video_expert / action_expert / tokenizer / video_scheduler / action_scheduler.
+# Root of the *per-module* FastWAM checkpoint (init weights, e.g.
+# FastWAM-Wan2.2-Init): vae / text_encoder / video_expert / action_expert /
+# proprio_encoder / tokenizer subfolders + a single scheduler/ (or split
+# video_scheduler/ + action_scheduler/). Weight files may be HuggingFace-style
+# (model.safetensors / sharded model-*.safetensors + index) or diffusers-style
+# (diffusion_pytorch_model.*).
 model_path: "/path/to/fastwam/checkpoint"
+
+# Optional: a whole-model SFT snapshot (e.g. the sft/weights folder with sharded
+# model.safetensors + model.safetensors.index.json). When set, its state dict is
+# loaded onto the assembled init model and fully replaces the per-module weights.
+# sft_state_dict_path: "/path/to/sft/weights"
 
 precision: null # for FastWAM, leave null to load checkpoint dtype
 

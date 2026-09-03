@@ -34,13 +34,23 @@ _MODEL_TYPE = "fastwam"
 def get_model(cfg: Any, torch_dtype: Any = None) -> nn.Module:
     """Build the FastWAM policy from ``cfg`` (the ``actor.model`` DictConfig).
 
-    The checkpoint at ``cfg.model_path`` must follow the FastWAM layout with
-    one diffusers-style subfolder per component: ``vae``, ``text_encoder``,
-    ``proprio_encoder``, ``video_expert``, ``action_expert``, ``tokenizer``,
-    ``video_scheduler``, ``action_scheduler`` (each with ``config.json`` and
-    safetensors). Normalization statistics are read from
-    ``cfg.stats_path`` (the ``dataset_stats.json`` shipped with the dataset /
-    weights; entries ``action`` and ``state``).
+    Checkpoint layout (see ``rlinf.models.embodiment.fastwam.checkpoint``):
+
+    * ``cfg.model_path`` points at a *per-module* checkpoint directory with one
+      component subfolder: ``vae``, ``text_encoder``, ``video_expert``,
+      ``action_expert``, ``proprio_encoder``, ``tokenizer``, plus a single
+      ``scheduler/`` (nested ``video_scheduler``/``action_scheduler`` configs) or
+      split ``video_scheduler/`` + ``action_scheduler/``. Weight files may use
+      HuggingFace naming (``model.safetensors``, sharded ``model-XXXXX*.safetensors``
+      + ``model.safetensors.index.json``) or vanilla diffusers naming
+      (``diffusion_pytorch_model.*``).
+    * ``cfg.sft_state_dict_path`` (optional) points at a whole-model SFT snapshot
+      (``sft/weights`` sharded state dict, or one merged ``.safetensors``);
+      when given it fully replaces the per-module weights after assembly.
+
+    Normalization statistics are read from ``cfg.stats_path`` (the
+    ``dataset_stats.json`` shipped with the dataset / weights; entries
+    ``action`` and ``state``).
 
     Returns:
         The :class:`FastWAMActionPolicy` wrapper (frozen conditioning + the
@@ -55,10 +65,14 @@ def get_model(cfg: Any, torch_dtype: Any = None) -> nn.Module:
             "the action expert only (set model.is_lora: False)."
         )
 
+    from .checkpoint import build_fastwam_from_checkpoint
     from .policy import FastWAMActionPolicy
-    from .wam import FastWAM
 
-    model = FastWAM.from_pretrained(str(cfg.model_path), dtype=torch_dtype)
+    model = build_fastwam_from_checkpoint(
+        str(cfg.model_path),
+        torch_dtype=torch_dtype,
+        sft_state_dict_path=cfg.get("sft_state_dict_path", None),
+    )
 
     action_min, action_max, proprio_min, proprio_max = _load_action_and_state_stats(cfg)
 

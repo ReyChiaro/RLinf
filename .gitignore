@@ -25,3 +25,4 @@ PKG-INFO
 
 .*.md
 docs/async_pipeline_abstraction.md
+checkpoints/
