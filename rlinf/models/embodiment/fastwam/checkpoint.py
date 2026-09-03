@@ -129,10 +129,39 @@ def _instantiate_text_encoder(config_path: Path) -> torch.nn.Module:
     return WanTextEncoder(config)
 
 
-def _load_tokenizer(path: Path):
+def _load_tokenizer(
+    root: Path,
+    seq_len: Optional[int],
+    clean: Optional[str],
+) -> Any:
+    """Build the prompt tokenizer from the HF files of ``root/tokenizer``.
+
+    FastWAM-Trainer checkpoints store only the standard HuggingFace files in
+    the tokenizer folder (``tokenizer_config.json`` / ``spiece.model`` / …);
+    the ``seq_len`` / ``clean`` companion config is carried in
+    ``root/model_config.yaml`` instead of a ``wan_text_encoder_tokenizer_config.json``.
+    """
     from .llm import WantTextEncoderTokenizer
 
-    return WantTextEncoderTokenizer.from_pretrained(str(path))
+    if seq_len is None or clean is None:
+        try:
+            import yaml
+        except ImportError:  # pragma: no cover
+            yaml = None
+        tok_cfg: dict[str, Any] = {}
+        model_config_path = root / "model_config.yaml"
+        if yaml is not None and model_config_path.is_file():
+            with open(model_config_path, "r", encoding="utf-8") as f:
+                loaded = yaml.safe_load(f) or {}
+            if isinstance(loaded, dict) and isinstance(loaded.get("tokenizer"), dict):
+                tok_cfg = loaded["tokenizer"]
+        if seq_len is None:
+            seq_len = int(tok_cfg.get("seq_len", 128))
+        if clean is None:
+            clean = str(tok_cfg.get("clean", "whitespace"))
+    return WantTextEncoderTokenizer(
+        str(root / "tokenizer"), seq_len=seq_len, clean=clean
+    )
 
 
 def _instantiate(config_path: Path, cls: type) -> torch.nn.Module:
@@ -196,6 +225,8 @@ def build_fastwam_from_checkpoint(
     *,
     torch_dtype: Optional[torch.dtype] = None,
     sft_state_dict_path: Optional[Union[str, Path]] = None,
+    tokenizer_seq_len: Optional[int] = None,
+    tokenizer_clean: Optional[str] = None,
 ) -> torch.nn.Module:
     """Assemble the FastWAM model from a checkpoint directory (see module doc).
 
@@ -206,6 +237,10 @@ def build_fastwam_from_checkpoint(
             sharded ``model.safetensors`` + index, or an already merged
             ``.safetensors`` file). When given, its state dict fully replaces
             the per-module weights (SFT trained from the init checkpoint).
+        tokenizer_seq_len / tokenizer_clean: Explicit prompt-tokenizer settings.
+            When omitted they fall back to ``root/model_config.yaml``
+            (``tokenizer.seq_len`` / ``tokenizer.clean``) and finally to
+            ``128`` / ``"whitespace"``.
     """
     from .dit import ActionDiT, VideoDiT
     from .vae import WanVideoVAE
@@ -224,7 +259,7 @@ def build_fastwam_from_checkpoint(
     action_dit = _instantiate(root / "action_expert" / "config.json", ActionDiT)
     proprio = _instantiate(root / "proprio_encoder" / "config.json", ProprioEncoder)
     text_encoder = _instantiate_text_encoder(root / "text_encoder" / "config.json")
-    tokenizer = _load_tokenizer(root / "tokenizer")
+    tokenizer = _load_tokenizer(root, tokenizer_seq_len, tokenizer_clean)
     video_scheduler, action_scheduler = _load_schedulers(root)
 
     model = FastWAM(

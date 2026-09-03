@@ -72,6 +72,8 @@ def get_model(cfg: Any, torch_dtype: Any = None) -> nn.Module:
         str(cfg.model_path),
         torch_dtype=torch_dtype,
         sft_state_dict_path=cfg.get("sft_state_dict_path", None),
+        tokenizer_seq_len=cfg.get("tokenizer_seq_len", None),
+        tokenizer_clean=cfg.get("tokenizer_clean", None),
     )
 
     action_min, action_max, proprio_min, proprio_max = _load_action_and_state_stats(cfg)
