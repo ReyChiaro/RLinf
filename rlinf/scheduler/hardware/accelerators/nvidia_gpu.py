@@ -413,8 +413,23 @@ class NvidiaGPUManager(AcceleratorManager):
                     cuda_device_id,
                 )
                 egl_device_id = cuda_device_id
-            for env_var in EGL_DEVICE_ID_ENV_VARS:
-                env_vars[env_var] = str(egl_device_id)
+
+            # An explicitly provided EGL id wins over the computed mapping. This
+            # is the escape hatch for nodes where the driver cannot be queried
+            # or EGL only enumerates a subset (e.g. per-CUDA-mask or a single
+            # software device): `export MUJOCO_EGL_DEVICE_ID=0` then bypasses the
+            # fallback-to-CUDA-id path entirely.
+            preset_egl_id = next(
+                (
+                    os.environ.get(env_var)
+                    for env_var in EGL_DEVICE_ID_ENV_VARS
+                    if os.environ.get(env_var)
+                ),
+                None,
+            )
+            if preset_egl_id is None:
+                for env_var in EGL_DEVICE_ID_ENV_VARS:
+                    env_vars[env_var] = str(egl_device_id)
 
         # NCCL env vars
         env_vars["NCCL_CUMEM_ENABLE"] = "0"

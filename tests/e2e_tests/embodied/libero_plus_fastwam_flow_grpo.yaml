@@ -97,6 +97,7 @@ actor:
   model:
     model_path: "/path/to/model/fastwam-libero-sft"
     stats_path: "/path/to/dataset_stats.json"
+    precision: bf16
     num_action_chunks: 8
     num_flow_steps: 4
     noise_level: 1.0
@@ -111,10 +112,15 @@ actor:
 
   fsdp_config:
     strategy: "fsdp"
-    sharding_strategy: "no_shard"
+    sharding_strategy: "full_shard"
     # Frozen conditioning + trainable action expert inside one model tree
     # require FSDP to keep original params.
     use_orig_params: True
+    # Wrap every DiTBlock (shared by the video/action experts) as its own FSDP
+    # unit so flattening stays small (no whole-model FlatParameter).
+    wrap_policy:
+      transformer_layer_cls_to_wrap:
+        - "DiTBlock"
     gradient_checkpointing: False
     mixed_precision:
       param_dtype: bf16

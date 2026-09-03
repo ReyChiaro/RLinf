@@ -102,8 +102,8 @@ rollout:
 actor:
   group_name: "ActorGroup"
   training_backend: "fsdp"
-  micro_batch_size: 8 # chunk-call rows per micro batch
-  global_batch_size: 64
+  micro_batch_size: 4 # chunk-call rows per micro batch
+  global_batch_size: 32
   seed: 42
   enable_offload: False
 
@@ -111,9 +111,9 @@ actor:
     # model_path must point at the per-module (init) checkpoint dir; optionally
     # sft_state_dict_path points at the whole-model SFT snapshot (sft/weights),
     # which then fully replaces the per-module weights (see model/fastwam.yaml).
-    model_path: "/path/to/model/fastwam-wan2.2-init"
-    # sft_state_dict_path: "/path/to/model/sft/weights"
-    stats_path: "/path/to/model/sft/dataset_stats.json"
+    model_path: "checkpoints/FastWAM-Wan2.2-Init"
+    sft_state_dict_path: "checkpoints/sft/weights"
+    stats_path: "checkpoints/dataset_stats.json"
     num_action_chunks: 32
     num_flow_steps: 10
     noise_level: 1.0
@@ -128,11 +128,18 @@ actor:
 
   fsdp_config:
     strategy: "fsdp"
-    sharding_strategy: "no_shard" # change to full_shard for multi-GPU scale-out
+    sharding_strategy: "full_shard" # shard the model across the 8 GPUs
     # FastWAM keeps the conditioning networks frozen inside the same module
     # tree as the trainable action expert, so FSDP must keep original params
     # (uniform-requires_grad flattening is impossible in that case).
     use_orig_params: True
+    # Wrap every DiTBlock (shared by the video/action experts) as its own FSDP
+    # unit. Without a wrap policy the whole ~25GB model becomes one
+    # FlatParameter whose flattening needs a full-size transient allocation and
+    # OOMs when another process shares the GPU.
+    wrap_policy:
+      transformer_layer_cls_to_wrap:
+        - "DiTBlock"
     gradient_checkpointing: False
     mixed_precision:
       param_dtype: bf16
